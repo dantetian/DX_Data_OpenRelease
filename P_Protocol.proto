@@ -182,7 +182,7 @@ message CommonProp {
 	optional GENDER_TYPE gender = 6 [ default = GENDER_TYPE_WOMAN]; //性别
 	optional int64 diamond = 7; //钻石总数 
 	optional int64 huanledou = 8 [ default = 10000 ]; //欢乐豆数 
-	optional int64 room_card_count = 9 [ default = 8 ]; //房卡数 
+	optional int64 room_card_count = 9 [ default = 3 ]; //房卡数 
 	optional int64 total_rounds = 10; //参加的总局数 
 	optional int64 room_card_rounds = 11; //房卡局数
 	optional int64 total_win_rounds = 12; //赢牌局数
