@@ -82,6 +82,9 @@ enum ROOM_CARD_CHANGED_TYPE {
 	ROOM_CARD_CHANGED_TYPE_CREATE_CLAN = 6; //创建茶馆
 	ROOM_CARD_CHANGED_TYPE_RECHARGE_CLAN = 7; //茶馆充值
 	ROOM_CARD_CHANGED_TYPE_DISMISS_CLAN = 8; //茶馆解散返还
+	ROOM_CARD_CHANGED_TYPE_JOIN_CLAN_MATCH = 9; //参加俱乐部比赛//报名
+	ROOM_CARD_CHANGED_TYPE_START_CLAN_MATCH = 10; //参加俱乐部比赛//开局
+	ROOM_CARD_CHANGED_TYPE_CLAN_MATCH_DISMISS = 11; //俱乐部比赛解散
 }
 
 //系统冷却
@@ -141,9 +144,7 @@ message PlayerBrief {
 	optional bytes nickname = 2; //玩家名称
 	optional bytes headimgurl = 3; //头像
 	optional int32 score = 4; //积分和
-
-	optional int32 hupai_count = 5; //胡牌次数
-	optional int32 dianpao_count = 6; //点炮次数
+	optional int32 out_rounds = 5; //比赛淘汰轮次
 }
 
 //游戏记录
@@ -310,12 +311,21 @@ message Clan {
 	message RoomHistory {
 		optional int64 room_id = 1; //房间ID	
 		optional int32 battle_time = 2; //对战时间
-		repeated PlayerBrief player_list = 3; //玩家分数信息//索引4之前的简要数据
+		repeated PlayerBrief player_list = 3; //玩家分数信息
 	}
 	repeated RoomHistory battle_history = 10; //历史战绩
 	repeated SystemMessage message_list = 11; //消息列表
 	optional int32 online_mem_count = 12; //在线成员数量
 	optional int32 sys_messsage_update_time = 13; //上次操作时间
+	repeated int64 applicants = 14; //报名者
+	optional MatchHistoryRecord match_history = 15; //本期战绩
+	optional MatchHistoryRecord last_match_history = 16; //上期战绩
+	repeated int64 clan_match_list = 17; //比赛历史战绩列表
+}
+
+message MatchHistoryRecord {
+	optional OpenMatch open_match = 1; //比赛设置
+	repeated MatchHistory history_list = 2; //战绩
 }
 
 /////////////////////////////////////////////////////
@@ -428,6 +438,23 @@ enum ERROR_CODE {
 	ERROR_CLAN_DISMISS_GAMING = 87; //茶馆：无法解散，当前有房间进行中
 	ERROR_CLAN_HAS_APPLY = 88; //茶馆：已经申请过加入茶馆
 	ERROR_CLAN_ROOM_COUNT_LIMIT = 89; //茶馆：创建房间已经达到上限
+	
+	ERROR_CLAN_MATCH_TIME_INVALID = 90; //比赛：时间选择非法
+	ERROR_CLAN_MATCH_NOT_HOSTER = 91; //比赛：不是老板，没有权限
+	ERROR_CLAN_MATCH_HAS_BEEN_APP = 92; //比赛：已经报名
+	ERROR_CLAN_MATCH_HASNOT_BEEN_APP = 93; //比赛：没有报名，不能参加比赛
+	ERROR_CLAN_MATCH_NO_TIME_REACH = 94; //比赛：时间未到
+	ERROR_CLAN_MATCH_HAS_OPENED = 95; //比赛已经开始或进行中，不能再次开启
+	ERROR_CLAN_MATCH_DIMISS = 96; //比赛已经开始或进行中，不能解散
+	ERROR_CLAN_MATCH_WAITING = 97; //等待其他玩家结算
+	ERROR_CLAN_MATCH_TIME_OUT = 98; //比赛已经开始，不能加入比赛
+	ERROR_CLAN_MATCH_OUT = 99; //已经淘汰，不能加入比赛
+	ERROR_CLAN_MATCH_DISMISS_NO_PERMISSION = 100; //比赛解散：没有权限
+	ERROR_CLAN_MATCH_DISMISS_STARTED = 101; //比赛解散：比赛已经开始
+	ERROR_CLAN_MATCH_PARA = 102; //茶馆比赛：人数不能实现轮数关系(人数下限>=轮次*3)
+	ERROR_CLAN_MATCH_LUNKONG_WAITING = 103; //茶馆比赛：轮空等待
+	ERROR_CLAN_MATCH_ACTIVITY_CLOSED = 104; //茶馆比赛：活动关闭
+	ERROR_CLAN_MATCH_ENTER_ROOM = 105; //茶馆比赛：比赛中，不能进入其他房间
 }
 
 /////////////////////////////////////////////////////
@@ -458,6 +485,10 @@ enum META_TYPE {
 	META_TYPE_SHARE_MATCHING_STATS = 20; //匹配数据
 	META_TYPE_SHARE_CLAN_OPERATION = 21; //茶馆操作
 	META_TYPE_SHARE_SWITCH_ROOM = 22; //切换房间
+	META_TYPE_SHARE_OPEN_MATCH = 23; //发起比赛
+	META_TYPE_SHARE_JOIN_MATCH = 24; //参加比赛
+	META_TYPE_SHARE_CLAN_MATCH_HISTORY = 25; //比赛轮次信息
+	META_TYPE_SHARE_CLAN_MATCH_DISMISS = 26; //解散比赛
 	META_TYPE_SHARE_COUNT = 50; //共享协议最大数量
 	///////////客户端发送数据///////////
 	META_TYPE_C2S_BEGIN = 51; //客户端开始协议
@@ -502,6 +533,7 @@ enum META_TYPE {
 	META_TYPE_S2C_ROOM_ALL = 527; //房间全部数据同步
 	META_TYPE_S2C_ROOM_IN = 528; //所在房间
 	META_TYPE_S2C_ROOM_QUERY = 529; //房间查询
+	META_TYPE_S2C_CLAN_MATCH_OUT = 530; //通知比赛淘汰
 	META_TYPE_S2C_COUNT = 1000; //服务器协议最大数量
 	///////////服务器之间协议数据///////////
 	META_TYPE_S2S_REGISTER = 1001; //注册逻辑服务器
@@ -512,6 +544,9 @@ enum META_TYPE {
 	META_TYPE_S2S_CLAN_ROOM_SYNC = 1006; //茶馆房数据实时同步
 	META_TYPE_S2S_CLAN_OPERATION = 1007; //茶馆操作结果数据同步
 	META_TYPE_S2S_COMMON_PROP_SYNC = 1008; //玩家基础属性同步
+	META_TYPE_S2S_CLAN_MATCH = 1009; //俱乐部比赛
+	META_TYPE_S2S_CLAN_CREATE_ROOM = 1010; //俱乐部比赛开启房间
+	META_TYPE_S2S_ENTER_GAME_SERVER = 1011; //进入逻辑服务器
 }
 
 /////////////////////////////////////////////////////
@@ -643,6 +678,7 @@ message Room {
 	optional bytes enter_password = 3; //房间密码：仅好友房存在
 	optional RoomOptions options = 4; //房间设置
 	optional int64 clan_id = 5; //茶馆ID
+	optional int32 curr_round = 6; //当前轮次
 }
 
 /////////////////////////////////////////////////////
@@ -971,6 +1007,66 @@ message ClanOperation {
 message SwitchRoom {
 	optional META_TYPE type_t = 1 [ default = META_TYPE_SHARE_SWITCH_ROOM ];
 	optional int32 ret_code = 2; //返回错误码
+}
+
+
+//支付方式
+enum PAY_TYPE {
+	PAY_TYPE_JOINED = 1; //参与付费，参加才付费
+	PAY_TYPE_ONCE = 2; //一次性付费
+}
+	
+
+//发起比赛
+message OpenMatch {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_SHARE_OPEN_MATCH ];
+	optional int64 clan_id = 2; //俱乐部ID
+	optional PAY_TYPE pay_type = 3; //付费方式
+	optional int32 ticket_count = 4; //付费房卡数
+	optional int32 people_down = 5 [ default = 3 ]; //参加比赛人数下限
+	optional int32 people_up = 6; //参加比赛人数上限
+	optional int32 lunci_count = 7; //比赛轮次，根据此值求每次淘汰玩家数量
+	optional int32 rounds_count = 8 [ default = 4 ]; //每轮局数
+	optional bytes announce = 9; //比赛公告
+	optional int32 start_time = 10; //开始比赛时间
+	optional int32 time_last = 11; //比赛限制时间(分钟)
+}
+
+//参加进度
+enum JOIN_TYPE {
+	JOIN_TYPE_ENROLL = 1; //报名阶段
+	JOIN_TYPE_JOIN = 2; //参加阶段
+}
+
+//参加比赛
+message JoinMatch {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_SHARE_JOIN_MATCH ];
+	optional int64 clan_id = 2; //俱乐部ID
+	optional JOIN_TYPE join_type = 3;
+}
+
+message MatchHistory {
+	optional int64 clan_id = 1; //俱乐部ID
+	optional int32 curr_rounds = 2; //本次轮次//如果是0则表示是总榜
+	optional int32 battle_time = 3; //对战时间
+	repeated PlayerBrief top_list = 4; //排行榜
+	optional int32 room_total = 5; //本轮房间总数
+	optional int32 room_remain = 6; //本轮房间剩余
+	repeated PlayerBrief unmathers = 7; //轮空玩家
+}
+
+//茶馆比赛记录
+message ClanMatchHistory {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_SHARE_CLAN_MATCH_HISTORY ];
+	optional int64 clan_id = 2; 
+	repeated MatchHistoryRecord list = 3; //排行榜数据
+}
+
+//解散比赛
+message ClanMatchDismiss {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_SHARE_CLAN_MATCH_DISMISS ];
+	optional int64 clan_id = 2; 
+	optional int32 room_card_count = 3;  //服务器内部使用
 }
 /////////////////////////////////////////////////////
 /////////////////////////////////////////////////////
@@ -1309,6 +1405,13 @@ message RoomQueryResult {
 	optional int32 curr_count = 7; //第X局//如果是0表示尚未开局
 }
 
+//通知比赛淘汰
+message ClanMatchOut {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_S2C_CLAN_MATCH_OUT ];
+	optional int32 curr_round = 2; //淘汰轮次
+	optional int32 top = 3; //排行名次
+}
+
 /////////////////////////////////////////////////////
 //
 //服务器内部协议定义
@@ -1380,4 +1483,26 @@ message ClanOperationSync {
 message CommonPropSync {
 	optional META_TYPE type_t = 1 [ default = META_TYPE_S2S_COMMON_PROP_SYNC ];
 	optional int64 player_id = 2;
+}
+
+//俱乐部比赛数据同步
+message ClanMatchSync {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_S2S_CLAN_MATCH ];
+	optional int64 player_id = 2;
+	optional JoinMatch join_match = 3; //参加比赛
+}
+
+//俱乐部比赛开房
+message ClanCreateRoom {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_S2S_CLAN_CREATE_ROOM ];
+	optional int64 clan_id = 2; //俱乐部
+	optional CreateRoom create_room = 3; //开房设置
+	optional int32 room_count = 4;
+	repeated int64 room_list = 5; //房间列表
+}
+
+//进入逻辑服务器返回
+message EnterGameServer {
+	optional META_TYPE type_t = 1 [ default = META_TYPE_S2S_ENTER_GAME_SERVER ];
+	optional int32 error_code = 2; //错误码
 }
